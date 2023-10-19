@@ -14,8 +14,9 @@ import os
 MODEL_NAME = os.environ.get('MODEL_NAME')
 MODEL_BASE_PATH = os.environ.get('MODEL_BASE_PATH', '/runpod-volume/')
 STREAMING = os.environ.get('STREAMING', False) == 'True'
-TOKENIZER = os.environ.get('TOKENIZER', None)
+TOKENIZER = os.environ.get('TOKENIZER', f"{MODEL_BASE_PATH}{MODEL_NAME.split('/')[1]}")
 USE_FULL_METRICS = os.environ.get('USE_FULL_METRICS', True)
+DTYPE = os.environ.get('DTYPE','auto')
 
 if not MODEL_NAME:
     print("Error: The model has not been provided.")
@@ -33,7 +34,7 @@ engine_args = AsyncEngineArgs(
     tokenizer=TOKENIZER,
     tokenizer_mode="auto",
     tensor_parallel_size=NUM_GPU_SHARD,
-    dtype="auto",
+    dtype=DTYPE,
     seed=0,
     max_num_batched_tokens=8192,
     disable_log_stats=False,
