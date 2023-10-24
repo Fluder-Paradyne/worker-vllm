@@ -14,7 +14,7 @@ import os
 MODEL_NAME = os.environ.get('MODEL_NAME')
 MODEL_BASE_PATH = os.environ.get('MODEL_BASE_PATH', '/runpod-volume/')
 STREAMING = os.environ.get('STREAMING', False) == 'True'
-TOKENIZER = os.environ.get('TOKENIZER', f"{MODEL_BASE_PATH}{MODEL_NAME.split('/')[1]}")
+TOKENIZER = os.environ.get('TOKENIZER', f"{MODEL_BASE_PATH}{MODEL_NAME.split('/')[-1]}")
 USE_FULL_METRICS = os.environ.get('USE_FULL_METRICS', True)
 DTYPE = os.environ.get('DTYPE','auto')
 
