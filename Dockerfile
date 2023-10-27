@@ -1,39 +1,45 @@
-# Base image
-# The following docker base image is recommended by VLLM: 
-FROM runpod/pytorch:2.0.1-py3.10-cuda11.8.0-devel
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
-# Use bash shell with pipefail option
+ARG TORCH
+ARG PYTHON_VERSION
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV SHELL=/bin/bash
 
 # Set the working directory
 WORKDIR /
 
-# Update and upgrade the system packages (Worker Template)
-ARG DEBIAN_FRONTEND=noninteractive
-RUN pip uninstall torch -y
-RUN pip install torch==2.0.1 -f https://download.pytorch.org/whl/cu118
-COPY builder/setup.sh /setup.sh
-RUN chmod +x /setup.sh && \
-    /setup.sh && \
-    rm /setup.sh
+# Create workspace directory
+RUN mkdir /workspace
 
-# Install fast api
-RUN pip install fastapi==0.99.1
+# Update, upgrade, install packages and clean up
+RUN apt-get update --yes && \
+    apt-get upgrade --yes && \
+    apt install --yes --no-install-recommends git wget curl bash libgl1 software-properties-common openssh-server nginx && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt install "python${PYTHON_VERSION}-dev" "python${PYTHON_VERSION}-venv" -y --no-install-recommends && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 
-# Install Python dependencies (Worker Template)
-COPY builder/requirements.txt /requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip && \
-    pip install --upgrade -r /requirements.txt --no-cache-dir && \
-    rm /requirements.txt
 
-# Add src files (Worker Template)
-ADD src .  
+# Set up Python and pip
+RUN ln -s /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
+    rm /usr/bin/python3 && \
+    ln -s /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+    python get-pip.py
 
-# Quick temporary updates
-RUN pip install git+https://github.com/runpod/runpod-python@a1#egg=runpod --compile
 
-# Prepare the models inside the docker image
+RUN pip install --upgrade --no-cache-dir pip
+RUN pip install --upgrade --no-cache-dir ${TORCH}
+
+
 ARG HUGGING_FACE_HUB_TOKEN=
 ENV HUGGING_FACE_HUB_TOKEN=$HUGGING_FACE_HUB_TOKEN
 
@@ -42,21 +48,9 @@ ARG MODEL_NAME=""
 ENV MODEL_NAME=$MODEL_NAME
 ARG MODEL_REVISION="main"
 ENV MODEL_REVISION=$MODEL_REVISION
-ARG MODEL_BASE_PATH="/runpod-volume/"
+ARG MODEL_BASE_PATH="/models/"
 ENV MODEL_BASE_PATH=$MODEL_BASE_PATH
-ARG TOKENIZER=
-ENV TOKENIZER=$TOKENIZER
-ARG STREAMING=
-ENV STREAMING=$STREAMING
 
-ENV HF_DATASETS_CACHE="/runpod-volume/huggingface-cache/datasets"
-ENV HUGGINGFACE_HUB_CACHE="/runpod-volume/huggingface-cache/hub"
-ENV TRANSFORMERS_CACHE="/runpod-volume/huggingface-cache/hub"
-
-# Download the models
-RUN mkdir -p /model
-
-# Set environment variables
 ENV MODEL_NAME=$MODEL_NAME \
     MODEL_REVISION=$MODEL_REVISION \
     MODEL_BASE_PATH=$MODEL_BASE_PATH \
@@ -65,5 +59,4 @@ ENV MODEL_NAME=$MODEL_NAME \
 # Run the Python script to download the model
 RUN python -u /download_model.py
 
-# Start the handler
-CMD STREAMING=$STREAMING MODEL_NAME=$MODEL_NAME MODEL_BASE_PATH=$MODEL_BASE_PATH TOKENIZER=$TOKENIZER python -u /handler.py 
+CMD python -m vllm.entrypoints.api_server --model ${MODEL_BASE_PATH}$(echo $MODEL_NAME| cut -d'/' -f 2)
