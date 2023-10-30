@@ -36,7 +36,6 @@ engine_args = AsyncEngineArgs(
     tensor_parallel_size=NUM_GPU_SHARD,
     dtype=DTYPE,
     seed=0,
-    max_num_batched_tokens=8192,
     disable_log_stats=False,
     # max_num_seqs=256,
 )
